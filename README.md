@@ -47,5 +47,4 @@ this is frontend part completion only there more need to be covered
 link:http://127.0.0.1:5500/ai1.html
 
 ```bash
-git clone https://github.com/Sravyatakkella/
-Ai-Code-Review-Project-Frondend-file.git
+https://github.com/Sravyatakkella/Ai-Code-Review-Project-Frondend-file/blob/main/ai1.html
