@@ -27,8 +27,6 @@ Tools:
 - Interactive code editor
 # 📸 Screenshots
 <img width="1917" height="934" alt="image" src="https://github.com/user-attachments/assets/48018e9f-401b-46a7-985f-ceb9c43b60ae" />
-<img width="1912" height="939" alt="image" src="https://github.com/user-attachments/assets/c269c845-3f92-49a8-93ec-12fd6c6af0a1" />
-
 ## Home Screen
 - Modern AI dashboard interface
 - Code editor with language selection
@@ -44,10 +42,10 @@ Tools:
 
 ## 1. Clone the repository
 this is frontend part completion only there more need to be covered
-link:http://127.0.0.1:5500/ai1.html
 
 ```bash
 https://github.com/Sravyatakkella/Ai-Code-Review-Project-Frondend-file/blob/main/ai1.html
+
 #code:
 <!DOCTYPE html>
 <html lang="en">
