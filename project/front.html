@@ -1,0 +1,1580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>AI Code Review</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@700&family=Share+Tech+Mono&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #080e1a;
+    --surface: #0d1525;
+    --surface2: #111d30;
+    --border: #1c2d47;
+    --blue: #4da6ff;
+    --purple: #a855f7;
+    --pink: #ec4899;
+    --cyan: #22d3ee;
+    --text: #c8d8f0;
+    --muted: #4a6080;
+    --dim: #2a4060;
+    --green: #4ade80;
+    --yellow: #fbbf24;
+    --red: #f87171;
+    --grid: rgba(30,60,100,0.14);
+  }
+ 
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+ 
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+  }
+ 
+  /* Dot grid background */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+ 
+  /* Top glow */
+  body::after {
+    content: '';
+    position: fixed; top: -150px; left: 50%; transform: translateX(-50%);
+    width: 1000px; height: 450px; z-index: 0; pointer-events: none;
+    background: radial-gradient(ellipse at center, rgba(77,166,255,0.07) 0%, transparent 70%);
+  }
+ 
+  .wrap {
+    position: relative; z-index: 1;
+    max-width: 1380px; margin: 0 auto; padding: 0 24px 70px;
+  }
+ 
+  /* ───── HEADER ───── */
+  header { text-align: center; padding: 40px 0 28px; }
+ 
+  .title {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: clamp(2.8rem, 7vw, 5.2rem);
+    line-height: 1; letter-spacing: -1px;
+    background: linear-gradient(90deg, #e0f0ff 0%, var(--blue) 35%, var(--purple) 65%, #e0f0ff 100%);
+    background-size: 200% auto;
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    animation: shimmer 6s linear infinite;
+  }
+ 
+  .subtitle {
+    margin-top: 12px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 13px; color: var(--muted); letter-spacing: 0.05em;
+  }
+ 
+  .subtitle .b { color: var(--blue); }
+  .subtitle .p { color: var(--purple); }
+ 
+  /* ───── MAIN GRID ───── */
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+ 
+  /* ───── PANEL ───── */
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    display: flex; flex-direction: column;
+    animation: panelIn 0.4s ease both;
+  }
+ 
+  .panel.right { animation-delay: 0.1s; }
+ 
+  .panel-head {
+    display: flex; align-items: center; gap: 8px;
+    padding: 13px 18px;
+    border-bottom: 1px solid var(--border);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px; letter-spacing: 0.12em; color: var(--muted);
+  }
+ 
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    display: inline-block;
+    animation: pulse 2s ease-in-out infinite;
+  }
+ 
+  /* ───── LANG BAR ───── */
+  .lang-bar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 11px 18px; font-size: 13px; color: var(--muted);
+  }
+ 
+  .lang-select {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 6px; color: var(--text);
+    padding: 5px 30px 5px 10px;
+    font-family: 'DM Sans', sans-serif; font-size: 13px;
+    cursor: pointer; outline: none; appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%234a6080' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 8px center;
+    transition: border-color 0.2s;
+  }
+  .lang-select:hover, .lang-select:focus { border-color: var(--blue); }
+ 
+  /* ───── CODE BOX ───── */
+  .code-wrap { margin: 0 14px 14px; flex: 1; display: flex; flex-direction: column; gap: 10px; }
+ 
+  .code-box {
+    border: 1px solid var(--border); border-radius: 10px;
+    overflow: hidden; flex: 1; display: flex; flex-direction: column;
+  }
+ 
+  .titlebar {
+    background: #0a1420;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 14px; border-bottom: 1px solid var(--border);
+  }
+ 
+  .lights { display: flex; gap: 6px; }
+  .light  { width: 12px; height: 12px; border-radius: 50%; }
+ 
+  .lang-badge {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px; color: var(--dim);
+  }
+ 
+  textarea {
+    flex: 1; min-height: 300px; width: 100%;
+    background: #060d18; border: none; resize: vertical;
+    padding: 16px 18px;
+    font-family: 'Share Tech Mono', monospace; font-size: 13px;
+    color: #88b8e8; line-height: 1.7;
+    outline: none; caret-color: var(--blue);
+    transition: color 0.2s;
+  }
+  textarea::placeholder { color: #1e3a5c; }
+  textarea:focus { color: #aed0f0; }
+ 
+  /* ───── ANALYZE BUTTON ───── */
+  .analyze-btn {
+    width: 100%; padding: 17px;
+    background: linear-gradient(90deg, var(--blue) 0%, var(--purple) 50%, var(--pink) 100%);
+    background-size: 200% auto;
+    border: none; border-radius: 10px; color: #fff;
+    font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 600;
+    letter-spacing: 0.04em; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    transition: background-position 0.4s, box-shadow 0.2s, transform 0.15s, opacity 0.2s;
+    position: relative; overflow: hidden;
+  }
+ 
+  .analyze-btn::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.1) 50%, transparent 100%);
+    transform: translateX(-100%);
+    transition: transform 0.6s;
+  }
+ 
+  .analyze-btn:hover:not(:disabled)::after { transform: translateX(100%); }
+  .analyze-btn:hover:not(:disabled) { background-position: right center; box-shadow: 0 0 30px rgba(77,166,255,0.35); transform: translateY(-1px); }
+  .analyze-btn:active:not(:disabled) { transform: translateY(0); }
+  .analyze-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+ 
+  /* ───── ANALYSIS PANEL CONTENT ───── */
+  .analysis-body {
+    flex: 1; padding: 20px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 14px; min-height: 380px;
+    overflow-y: auto;
+  }
+ 
+  .analysis-body.results-mode {
+    align-items: stretch; justify-content: flex-start;
+  }
+ 
+  /* Empty state */
+  .empty { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+ 
+  .empty-desc {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px; color: var(--dim); line-height: 1.65; max-width: 220px;
+  }
+ 
+  /* Loading */
+  .loading { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+ 
+  .spinner {
+    width: 44px; height: 44px; border-radius: 50%;
+    border: 2px solid var(--border); border-top-color: var(--blue);
+    animation: spin 0.8s linear infinite;
+  }
+ 
+  .loading-text {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px; color: var(--muted);
+    animation: blink 1s step-end infinite;
+  }
+ 
+  /* Scores */
+  .scores { display: flex; gap: 10px; }
+ 
+  .score-card {
+    flex: 1; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 14px; text-align: center;
+  }
+ 
+  .score-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 6px;
+  }
+ 
+  .score-val {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 30px; font-weight: 700;
+  }
+ 
+  .score-val.good { color: var(--green); text-shadow: 0 0 12px rgba(74,222,128,0.4); }
+  .score-val.warn { color: var(--yellow); text-shadow: 0 0 12px rgba(251,191,36,0.4); }
+  .score-val.bad  { color: var(--red);   text-shadow: 0 0 12px rgba(248,113,113,0.4); }
+ 
+  /* Summary */
+  .summary-bar {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 14px;
+    font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--muted);
+    display: flex; align-items: center; gap: 8px;
+  }
+ 
+  /* Findings */
+  .findings { display: flex; flex-direction: column; gap: 8px; }
+ 
+  .finding {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 14px;
+    display: flex; gap: 10px; align-items: flex-start;
+    font-size: 13px; line-height: 1.55;
+    animation: fadeUp 0.3s ease both;
+  }
+ 
+  .finding-icon { flex-shrink: 0; font-size: 15px; margin-top: 1px; }
+ 
+  .finding-body { flex: 1; }
+ 
+  .finding-title {
+    font-weight: 600; margin-bottom: 3px;
+    display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  }
+ 
+  .finding-desc { color: var(--muted); font-size: 12px; }
+ 
+  .tag {
+    display: inline-block; padding: 1px 7px; border-radius: 4px;
+    font-family: 'Share Tech Mono', monospace; font-size: 10px; letter-spacing: 0.05em;
+  }
+ 
+  .tag-sec  { background: rgba(248,113,113,0.12); color: var(--red);    border: 1px solid rgba(248,113,113,0.3); }
+  .tag-perf { background: rgba(251,191,36,0.12);  color: var(--yellow); border: 1px solid rgba(251,191,36,0.3); }
+  .tag-qual { background: rgba(77,166,255,0.12);  color: var(--blue);   border: 1px solid rgba(77,166,255,0.3); }
+  .tag-sev  { background: rgba(255,255,255,0.04); color: var(--muted);  border: 1px solid var(--border); }
+ 
+  /* Reset btn */
+  .reset-btn {
+    align-self: flex-start;
+    padding: 7px 16px; border-radius: 6px;
+    background: transparent; border: 1px solid var(--border);
+    color: var(--muted); cursor: pointer; font-size: 12px;
+    font-family: 'DM Sans', sans-serif;
+    transition: border-color 0.2s, color 0.2s;
+  }
+  .reset-btn:hover { border-color: var(--blue); color: var(--blue); }
+ 
+  /* Error */
+  .error-box { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .error-box p { color: var(--red); font-weight: 600; }
+  .error-box small { color: var(--muted); font-family: 'Share Tech Mono', monospace; font-size: 11px; }
+ 
+  /* ───── KEYFRAMES ───── */
+  @keyframes shimmer { 0% { background-position: 0% center; } 100% { background-position: 200% center; } }
+  @keyframes pulse   { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+  @keyframes spin    { to { transform: rotate(360deg); } }
+  @keyframes blink   { 50% { opacity: 0.3; } }
+  @keyframes fadeUp  { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes panelIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+ 
+  /* ───── RESPONSIVE ───── */
+  @media (max-width: 860px) {
+    .grid { grid-template-columns: 1fr; }
+    .setup-bar { flex-direction: column; align-items: flex-start; }
+  }
+ 
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+ 
+  <!-- ── HEADER ── -->
+  <header>
+    <h1 class="title">AI Code Review</h1>
+    <p class="subtitle">
+      <span class="b">// security</span> · performance · best practices
+      <span class="p"> → </span>instant analysis
+    </p>
+  </header>
+ 
+  <!-- ── MAIN GRID ── -->
+  <div class="grid">
+ 
+    <!-- LEFT: Editor -->
+    <div class="panel">
+      <div class="panel-head">
+        <span class="dot" style="background:var(--blue);box-shadow:0 0 6px var(--blue)"></span>
+        CODE EDITOR
+      </div>
+ 
+      <div class="lang-bar">
+        <span>Language:</span>
+        <select class="lang-select" id="langSelect" onchange="syncBadge()">
+          <option>JavaScript</option><option>TypeScript</option><option>Python</option>
+          <option>Java</option><option>C++</option><option>C#</option><option>Go</option>
+          <option>Rust</option><option>PHP</option><option>Ruby</option><option>Swift</option>
+          <option>Kotlin</option><option>SQL</option><option>Bash</option><option>HTML</option>
+          <option>CSS</option><option>R</option><option>Scala</option><option>Dart</option>
+          <option>Elixir</option><option>Haskell</option><option>Lua</option><option>Perl</option>
+        </select>
+      </div>
+ 
+      <div class="code-wrap">
+        <div class="code-box">
+          <div class="titlebar">
+            <div class="lights">
+              <span class="light" style="background:#ff5f56"></span>
+              <span class="light" style="background:#ffbd2e"></span>
+              <span class="light" style="background:#27c93f"></span>
+            </div>
+            <span class="lang-badge" id="langBadge">JavaScript</span>
+          </div>
+          <textarea id="codeInput" spellcheck="false"
+            placeholder="// Paste your code here for AI analysis...&#10;&#10;// Supports 23+ languages and frameworks&#10;// Get security, performance &amp; quality insights"></textarea>
+        </div>
+ 
+        <button class="analyze-btn" id="analyzeBtn" onclick="analyzeCode()">
+          ⚡ Analyze Code
+        </button>
+      </div>
+    </div>
+ 
+    <!-- RIGHT: Analysis -->
+    <div class="panel right">
+      <div class="panel-head">
+        <span class="dot" style="background:var(--purple);box-shadow:0 0 6px var(--purple)"></span>
+        AI ANALYSIS
+      </div>
+ 
+      <!-- Empty state -->
+      <div class="analysis-body" id="emptyState">
+        <div class="empty">
+          <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
+            <circle cx="24" cy="24" r="14" stroke="#22d3ee" stroke-width="2.5" opacity="0.7"/>
+            <circle cx="24" cy="24" r="8" fill="rgba(34,211,238,0.07)"/>
+            <line x1="34" y1="34" x2="48" y2="48" stroke="#a855f7" stroke-width="3" stroke-linecap="round"/>
+          </svg>
+          <p style="font-size:15px;font-weight:600;color:var(--muted)">No Code Analyzed Yet</p>
+          <p class="empty-desc">Paste your code in the editor and click Analyze Code to get AI-powered insights instantly.</p>
+        </div>
+      </div>
+ 
+      <!-- Loading state -->
+      <div class="analysis-body" id="loadingState" style="display:none">
+        <div class="loading">
+          <div class="spinner"></div>
+          <p class="loading-text">Analyzing your code...</p>
+        </div>
+      </div>
+ 
+      <!-- Error state -->
+      <div class="analysis-body" id="errorState" style="display:none">
+        <div class="error-box">
+          <span style="font-size:32px">⚠️</span>
+          <p>Analysis Failed</p>
+          <small id="errMsg"></small>
+          <button class="reset-btn" onclick="showState('empty')">Try Again</button>
+        </div>
+      </div>
+ 
+      <!-- Results state -->
+      <div class="analysis-body results-mode" id="resultsState" style="display:none">
+        <!-- Scores -->
+        <div class="scores">
+          <div class="score-card">
+            <div class="score-label">SECURITY</div>
+            <div class="score-val" id="secScore">—</div>
+          </div>
+          <div class="score-card">
+            <div class="score-label">PERFORMANCE</div>
+            <div class="score-val" id="perfScore">—</div>
+          </div>
+          <div class="score-card">
+            <div class="score-label">QUALITY</div>
+            <div class="score-val" id="qualScore">—</div>
+          </div>
+        </div>
+ 
+        <!-- Summary -->
+        <div class="summary-bar">
+          <span style="color:var(--blue)">📋</span>
+          <span id="summaryText">findings detected</span>
+        </div>
+ 
+        <!-- Findings -->
+        <div class="findings" id="findingsList"></div>
+ 
+        <!-- Reset -->
+        <button class="reset-btn" onclick="showState('empty')">← New Analysis</button>
+      </div>
+    </div>
+ 
+  </div>
+</div>
+ 
+<script>
+  // ─────────────────────────────────────────────
+  // CONFIG
+  // ─────────────────────────────────────────────
+  const BACKEND_URL = "http://localhost:5000/review";
+
+  function syncBadge() {
+    const lang = document.getElementById('langSelect').value;
+    document.getElementById('langBadge').textContent = lang;
+  }
+
+  function showState(state) {
+    ['emptyState','loadingState','errorState','resultsState'].forEach(id => {
+      document.getElementById(id).style.display = 'none';
+    });
+
+    const map = {
+      empty: 'emptyState',
+      loading: 'loadingState',
+      error: 'errorState',
+      results: 'resultsState'
+    };
+
+    document.getElementById(map[state]).style.display = 'flex';
+  }
+
+  function scoreClass(n) {
+    return n >= 75 ? 'good' : n >= 45 ? 'warn' : 'bad';
+  }
+
+  function esc(s) {
+    return String(s)
+      .replace(/&/g,'&amp;')
+      .replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;');
+  }
+
+  const TYPE_ICONS = {
+    security: '🔒',
+    performance: '⚡',
+    quality: '✨'
+  };
+
+  const TAG_CLASS = {
+    security: 'tag-sec',
+    performance: 'tag-perf',
+    quality: 'tag-qual'
+  };
+
+  const SEV_ORDER = {
+    high: 0,
+    medium: 1,
+    low: 2
+  };
+
+  // ─────────────────────────────────────────────
+  // LOCAL RULE-BASED ANALYZER
+  // ─────────────────────────────────────────────
+function localAnalysis(code, lang) {
+
+  let findings = [];
+
+  // ─────────────────────────────
+  // HELPERS
+  // ─────────────────────────────
+
+  function add(type, title, description, severity) {
+
+    findings.push({
+      type,
+      title,
+      description,
+      severity
+    });
+  }
+
+  function count(str, regex) {
+    return (str.match(regex) || []).length;
+  }
+
+  function balanced(code) {
+
+    const stack = [];
+
+    const pairs = {
+      ")": "(",
+      "}": "{",
+      "]": "["
+    };
+
+    for (let ch of code) {
+
+      if ("({[".includes(ch)) {
+        stack.push(ch);
+      }
+
+      else if (")}]".includes(ch)) {
+
+        if (stack.pop() !== pairs[ch]) {
+          return false;
+        }
+      }
+    }
+
+    return stack.length === 0;
+  }
+
+  // ─────────────────────────────
+  // GLOBAL CHECKS
+  // ─────────────────────────────
+
+  if (code.trim().length < 10) {
+
+    add(
+      "quality",
+      "Insufficient Code",
+      "The submitted code is too short for analysis.",
+      "medium"
+    );
+  }
+
+  if (!balanced(code)) {
+
+    add(
+      "quality",
+      "Unbalanced Brackets",
+      "Detected mismatched or missing brackets.",
+      "high"
+    );
+  }
+
+  if (code.includes("eval(")) {
+
+    add(
+      "security",
+      "Dangerous eval() Usage",
+      "eval() may execute arbitrary code and create security vulnerabilities.",
+      "high"
+    );
+  }
+
+  if (code.includes("innerHTML")) {
+
+    add(
+      "security",
+      "Unsafe innerHTML Usage",
+      "innerHTML can expose applications to XSS attacks.",
+      "high"
+    );
+  }
+
+  if (
+    code.toLowerCase().includes("password") &&
+    code.includes("=")
+  ) {
+
+    add(
+      "security",
+      "Hardcoded Credentials",
+      "Sensitive credentials appear inside source code.",
+      "high"
+    );
+  }
+
+  if (code.includes("console.log")) {
+
+    add(
+      "performance",
+      "Console Logs Present",
+      "Remove console.log statements in production.",
+      "low"
+    );
+  }
+
+  // ─────────────────────────────
+  // JAVASCRIPT / TYPESCRIPT
+  // ─────────────────────────────
+
+  if (
+    lang === "JavaScript" ||
+    lang === "TypeScript"
+  ) {
+
+    try {
+
+      new Function(code);
+
+    } catch (err) {
+
+      add(
+        "quality",
+        "Syntax Error",
+        err.message,
+        "high"
+      );
+    }
+
+    if (code.includes("var ")) {
+
+      add(
+        "quality",
+        "Use let/const",
+        "Prefer let and const over var.",
+        "low"
+      );
+    }
+
+    const badSpellings = [
+      "fucntion",
+      "retrun",
+      "cosnole",
+      "lenght"
+    ];
+
+    badSpellings.forEach(word => {
+
+      if (code.includes(word)) {
+
+        add(
+          "quality",
+          "Possible Typo",
+          `"${word}" appears to be misspelled.`,
+          "medium"
+        );
+      }
+    });
+  }
+
+  // ─────────────────────────────
+  // PYTHON
+  // ─────────────────────────────
+
+  if (lang === "Python") {
+
+    // Invalid braces
+    if (
+      code.includes("{") ||
+      code.includes("}")
+    ) {
+
+      add(
+        "quality",
+        "Invalid Python Braces",
+        "Python uses indentation instead of curly braces.",
+        "high"
+      );
+    }
+
+    // Missing colons
+    const colonPatterns = [
+      /\bif\s+.*[^\:]\s*$/gm,
+      /\bfor\s+.*[^\:]\s*$/gm,
+      /\bwhile\s+.*[^\:]\s*$/gm,
+      /\bdef\s+.*[^\:]\s*$/gm,
+      /\bclass\s+.*[^\:]\s*$/gm,
+      /\belse[^\:]\s*$/gm,
+      /\belif\s+.*[^\:]\s*$/gm
+    ];
+
+    colonPatterns.forEach(pattern => {
+
+      if (pattern.test(code)) {
+
+        add(
+          "quality",
+          "Missing Colon",
+          "Python statements require ':' at line endings.",
+          "high"
+        );
+      }
+    });
+
+    // Parentheses
+    if (
+      count(code, /\(/g) !==
+      count(code, /\)/g)
+    ) {
+
+      add(
+        "quality",
+        "Unbalanced Parentheses",
+        "Detected missing or extra parentheses.",
+        "high"
+      );
+    }
+
+    // Square brackets
+    if (
+      count(code, /\[/g) !==
+      count(code, /\]/g)
+    ) {
+
+      add(
+        "quality",
+        "Unbalanced Square Brackets",
+        "Detected missing or extra square brackets.",
+        "high"
+      );
+    }
+
+    // Quotes
+    if (count(code, /'/g) % 2 !== 0) {
+
+      add(
+        "quality",
+        "Unclosed Single Quote",
+        "Detected unmatched single quote.",
+        "high"
+      );
+    }
+
+    if (count(code, /"/g) % 2 !== 0) {
+
+      add(
+        "quality",
+        "Unclosed Double Quote",
+        "Detected unmatched double quote.",
+        "high"
+      );
+    }
+
+    // Invalid print
+    if (
+      code.includes("print ") &&
+      !code.includes("print(")
+    ) {
+
+      add(
+        "quality",
+        "Invalid print Syntax",
+        "Use print() function syntax.",
+        "medium"
+      );
+    }
+
+    // Undefined variables
+    const assignedVars = [];
+
+    const assignMatches =
+      code.matchAll(
+        /([a-zA-Z_][a-zA-Z0-9_]*)\s*=/g
+      );
+
+    for (const match of assignMatches) {
+      assignedVars.push(match[1]);
+    }
+
+    const variableUsages =
+      code.matchAll(
+        /\b([a-zA-Z_][a-zA-Z0-9_]*)\b/g
+      );
+
+    const pythonKeywords = [
+      "print",
+      "if",
+      "else",
+      "elif",
+      "for",
+      "while",
+      "True",
+      "False",
+      "None",
+      "and",
+      "or",
+      "not",
+      "in",
+      "is",
+      "def",
+      "class",
+      "return",
+      "range",
+      "len",
+      "int",
+      "float",
+      "str",
+      "list",
+      "dict",
+      "set",
+      "tuple"
+    ];
+
+    for (const match of variableUsages) {
+
+      const variable = match[1];
+
+      if (
+        !assignedVars.includes(variable) &&
+        !pythonKeywords.includes(variable)
+      ) {
+
+        if (!/^\d+$/.test(variable)) {
+
+          add(
+            "quality",
+            "Undefined Variable",
+            `"${variable}" is being used before assignment.`,
+            "high"
+          );
+        }
+      }
+    }
+
+    // Python spelling mistakes
+    const badSpellings = [
+      "pritn",
+      "retrun",
+      "flase",
+      "treu",
+      "lenght",
+      "apend"
+    ];
+
+    badSpellings.forEach(word => {
+
+      if (code.includes(word)) {
+
+        add(
+          "quality",
+          "Possible Spelling Mistake",
+          `"${word}" appears to be misspelled.`,
+          "medium"
+        );
+      }
+    });
+  }
+
+ // ======================================================
+// HTML
+// ======================================================
+
+if (lang === "HTML") {
+
+  // -----------------------------
+  // BASIC TAG CHECK
+  // -----------------------------
+
+  const tagPairs = [
+    ["div", "div"],
+    ["body", "body"],
+    ["html", "html"],
+    ["head", "head"],
+    ["p", "p"],
+    ["span", "span"],
+    ["section", "section"],
+    ["article", "article"],
+    ["header", "header"],
+    ["footer", "footer"],
+    ["main", "main"]
+  ];
+
+  tagPairs.forEach(pair => {
+
+    const open =
+      count(code,
+        new RegExp(`<${pair[0]}(\\s|>)`, "g")
+      );
+
+    const close =
+      count(code,
+        new RegExp(`</${pair[1]}>`, "g")
+      );
+
+    if (open !== close) {
+
+      add(findings,
+        "quality",
+        `Unclosed <${pair[0]}> Tag`,
+        `Opening and closing <${pair[0]}> tags do not match.`,
+        "high"
+      );
+    }
+  });
+
+  // -----------------------------
+  // IMG ALT CHECK
+  // -----------------------------
+
+  const imgTags =
+    code.match(/<img[^>]*>/g) || [];
+
+  imgTags.forEach(tag => {
+
+    if (
+      !tag.includes("alt=")
+    ) {
+
+      add(findings,
+        "quality",
+        "Missing alt Attribute",
+        "Image tag should contain alt attribute for accessibility.",
+        "medium"
+      );
+    }
+  });
+
+  // -----------------------------
+  // BUTTON TYPE CHECK
+  // -----------------------------
+
+  const buttonTags =
+    code.match(/<button[^>]*>/g) || [];
+
+  buttonTags.forEach(tag => {
+
+    if (
+      !tag.includes("type=")
+    ) {
+
+      add(findings,
+        "quality",
+        "Button Missing type",
+        "Button should specify type attribute.",
+        "low"
+      );
+    }
+  });
+
+  // -----------------------------
+  // SPELLING CHECKS
+  // -----------------------------
+
+  const badHtml = [
+    "<dib",
+    "<sapn",
+    "<btton",
+    "<scrpt",
+    "<stlye",
+    "</dib>",
+    "</sapn>"
+  ];
+
+  badHtml.forEach(word => {
+
+    if (
+      code.includes(word)
+    ) {
+
+      add(findings,
+        "quality",
+        "HTML Spelling Mistake",
+        `"${word}" appears invalid.`,
+        "high"
+      );
+    }
+  });
+
+  // -----------------------------
+  // INLINE STYLE CHECK
+  // -----------------------------
+
+  if (
+    code.includes('style="')
+  ) {
+
+    add(findings,
+      "quality",
+      "Inline Styles Detected",
+      "Prefer external CSS instead of inline styles.",
+      "low"
+    );
+  }
+
+  // -----------------------------
+  // MISSING DOCTYPE
+  // -----------------------------
+
+  if (
+    !code.includes("<!DOCTYPE html>")
+  ) {
+
+    add(findings,
+      "quality",
+      "Missing DOCTYPE",
+      "HTML document should begin with <!DOCTYPE html>.",
+      "medium"
+    );
+  }
+
+  // -----------------------------
+  // SCRIPT SECURITY
+  // -----------------------------
+
+  if (
+    code.includes("innerHTML")
+  ) {
+
+    add(findings,
+      "security",
+      "Unsafe innerHTML Usage",
+      "innerHTML may expose the app to XSS attacks.",
+      "high"
+    );
+  }
+}
+  // ─────────────────────────────
+  // CSS
+  // ─────────────────────────────
+
+  if (lang === "CSS") {
+
+    if (
+      !code.includes("{") ||
+      !code.includes("}")
+    ) {
+
+      add(
+        "quality",
+        "Invalid CSS Blocks",
+        "CSS blocks appear incomplete.",
+        "high"
+      );
+    }
+
+    if (
+      !code.includes(":")
+    ) {
+
+      add(
+        "quality",
+        "Missing CSS Properties",
+        "CSS property definitions appear invalid.",
+        "medium"
+      );
+    }
+  }
+  if (lang === "Java") {
+
+  // ─────────────────────────────
+  // JAVA CLASS CHECK
+  // ─────────────────────────────
+
+  if (
+    !code.includes("class ")
+  ) {
+
+    add(
+      "quality",
+      "Missing Class Definition",
+      "Java programs usually require a class definition.",
+      "high"
+    );
+  }
+
+  // ─────────────────────────────
+  // MAIN METHOD CHECK
+  // ─────────────────────────────
+
+  if (
+    !code.includes("main(")
+  ) {
+
+    add(
+      "quality",
+      "Missing main Method",
+      "Java entry point method main() was not detected.",
+      "medium"
+    );
+  }
+
+  // ─────────────────────────────
+  // BRACKET BALANCE
+  // ─────────────────────────────
+
+  if (
+    count(code, /{/g) !==
+    count(code, /}/g)
+  ) {
+
+    add(
+      "quality",
+      "Unbalanced Curly Braces",
+      "Detected missing or extra curly braces.",
+      "high"
+    );
+  }
+
+  if (
+    count(code, /\(/g) !==
+    count(code, /\)/g)
+  ) {
+
+    add(
+      "quality",
+      "Unbalanced Parentheses",
+      "Detected missing or extra parentheses.",
+      "high"
+    );
+  }
+
+  // ─────────────────────────────
+  // SEMICOLON CHECK
+  // ─────────────────────────────
+
+  const javaLines =
+    code.split("\n");
+
+  javaLines.forEach((line, index) => {
+
+    const trimmed =
+      line.trim();
+
+    if (
+      trimmed &&
+      !trimmed.endsWith(";") &&
+      !trimmed.endsWith("{") &&
+      !trimmed.endsWith("}") &&
+      !trimmed.startsWith("//") &&
+      !trimmed.includes("if") &&
+      !trimmed.includes("for") &&
+      !trimmed.includes("while") &&
+      !trimmed.includes("class") &&
+      !trimmed.includes("public") &&
+      !trimmed.includes("private")
+    ) {
+
+      add(
+        "quality",
+        "Possible Missing Semicolon",
+        `Line ${index + 1} may be missing a semicolon.`,
+        "medium"
+      );
+    }
+  });
+
+  // ─────────────────────────────
+  // SYSTEM.OUT CHECK
+  // ─────────────────────────────
+
+  if (
+    code.includes("System.out.prntln")
+  ) {
+
+    add(
+      "quality",
+      "Possible Spelling Mistake",
+      `"System.out.prntln" should be "System.out.println".`,
+      "high"
+    );
+  }
+
+  // ─────────────────────────────
+  // VARIABLE CHECK
+  // ─────────────────────────────
+
+  const declaredVars = [];
+
+  const variableMatches =
+    code.matchAll(
+      /\b(int|String|double|float|boolean|char|long)\s+([a-zA-Z_][a-zA-Z0-9_]*)/g
+    );
+
+  for (const match of variableMatches) {
+
+    declaredVars.push(match[2]);
+  }
+
+  const usages =
+    code.matchAll(
+      /\b([a-zA-Z_][a-zA-Z0-9_]*)\b/g
+    );
+
+  const javaKeywords = [
+    "public",
+    "private",
+    "class",
+    "static",
+    "void",
+    "main",
+    "String",
+    "int",
+    "double",
+    "float",
+    "boolean",
+    "char",
+    "long",
+    "if",
+    "else",
+    "for",
+    "while",
+    "return",
+    "new",
+    "System",
+    "out",
+    "println",
+    "print"
+  ];
+
+  for (const match of usages) {
+
+    const variable =
+      match[1];
+
+    if (
+      !declaredVars.includes(variable) &&
+      !javaKeywords.includes(variable)
+    ) {
+
+      if (
+        variable.length > 1 &&
+        !/^\d+$/.test(variable)
+      ) {
+
+        if (
+          code.includes(variable) &&
+          !code.includes(variable + " ")
+        ) {
+
+          add(
+            "quality",
+            "Possible Undefined Variable",
+            `"${variable}" may be used before declaration.`,
+            "medium"
+          );
+        }
+      }
+    }
+  }
+
+  // ─────────────────────────────
+  // SPELLING CHECKS
+  // ─────────────────────────────
+
+  const badSpellings = [
+    "publc",
+    "clas",
+    "statc",
+    "retrun",
+    "Strng",
+    "pritnln",
+    "syso"
+  ];
+
+  badSpellings.forEach(word => {
+
+    if (code.includes(word)) {
+
+      add(
+        "quality",
+        "Possible Spelling Mistake",
+        `"${word}" appears to be misspelled.`,
+        "medium"
+      );
+    }
+  });
+
+  // ─────────────────────────────
+  // INFINITE LOOP DETECTION
+  // ─────────────────────────────
+
+  if (
+    code.includes("while(true)")
+  ) {
+
+    add(
+      "performance",
+      "Possible Infinite Loop",
+      "while(true) loops may run forever without proper exit conditions.",
+      "high"
+    );
+  }
+
+  // ─────────────────────────────
+  // SECURITY CHECKS
+  // ─────────────────────────────
+
+  if (
+    code.includes("Runtime.getRuntime")
+  ) {
+
+    add(
+      "security",
+      "Runtime Execution Detected",
+      "Runtime command execution may introduce security risks.",
+      "high"
+    );
+  }
+}
+
+  // ─────────────────────────────
+  // SQL
+  // ─────────────────────────────
+
+  if (lang === "SQL") {
+
+    const upper = code.toUpperCase();
+
+    if (
+      !upper.includes("SELECT") &&
+      !upper.includes("INSERT") &&
+      !upper.includes("UPDATE") &&
+      !upper.includes("DELETE")
+    ) {
+
+      add(
+        "quality",
+        "Unknown SQL Statement",
+        "No valid SQL command detected.",
+        "high"
+      );
+    }
+
+    if (
+      upper.includes("DROP TABLE")
+    ) {
+
+      add(
+        "security",
+        "Dangerous SQL Operation",
+        "DROP TABLE statements are destructive.",
+        "high"
+      );
+    }
+  }
+
+  // ─────────────────────────────
+  // SCORE CALCULATION
+  // ─────────────────────────────
+
+  let security = 95;
+  let performance = 95;
+  let quality = 95;
+
+  findings.forEach(f => {
+
+    let penalty = 0;
+
+    if (f.severity === "high")
+      penalty = 25;
+
+    else if (f.severity === "medium")
+      penalty = 15;
+
+    else
+      penalty = 8;
+
+    if (f.type === "security")
+      security -= penalty;
+
+    if (f.type === "performance")
+      performance -= penalty;
+
+    if (f.type === "quality")
+      quality -= penalty;
+  });
+
+  security = Math.max(5, security);
+  performance = Math.max(5, performance);
+  quality = Math.max(5, quality);
+
+  return {
+    security,
+    performance,
+    quality,
+    findings
+  };
+}
+  // ─────────────────────────────────────────────
+  // MAIN ANALYZE FUNCTION
+  // ─────────────────────────────────────────────
+  async function analyzeCode() {
+
+    const code = document.getElementById('codeInput').value.trim();
+    const lang = document.getElementById('langSelect').value;
+
+    if (!code) {
+      document.getElementById('codeInput').focus();
+      return;
+    }
+
+    document.getElementById('analyzeBtn').disabled = true;
+
+    showState('loading');
+
+    try {
+
+      // FIRST: Local instant analysis
+      let localResult = localAnalysis(code, lang);
+
+      // SECOND: Try backend AI analysis
+      try {
+
+        const res = await fetch(BACKEND_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            code,
+            language: lang
+          })
+        });
+
+        if (res.ok) {
+
+          const aiResult = await res.json();
+
+          // merge findings
+          localResult.findings = [
+            ...localResult.findings,
+            ...(aiResult.findings || [])
+          ];
+
+          // better scores
+          localResult.security =
+            Math.round((localResult.security + aiResult.security) / 2);
+
+          localResult.performance =
+            Math.round((localResult.performance + aiResult.performance) / 2);
+
+          localResult.quality =
+            Math.round((localResult.quality + aiResult.quality) / 2);
+        }
+
+      } catch (backendErr) {
+        console.log("Backend unavailable. Using local analysis only.");
+      }
+
+      renderResults(localResult, lang);
+
+    } catch (e) {
+
+      document.getElementById('errMsg').textContent =
+        e.message || 'Analysis failed';
+
+      showState('error');
+
+    } finally {
+      document.getElementById('analyzeBtn').disabled = false;
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // RENDER RESULTS
+  // ─────────────────────────────────────────────
+  function renderResults(r, lang) {
+
+    ['sec','perf','qual'].forEach((k, i) => {
+
+      const vals = [
+        r.security,
+        r.performance,
+        r.quality
+      ];
+
+      const el = document.getElementById(k + 'Score');
+
+      el.textContent = vals[i];
+
+      el.className =
+        'score-val ' + scoreClass(vals[i]);
+    });
+
+    document.getElementById('summaryText').textContent =
+      `${r.findings.length} finding${r.findings.length !== 1 ? 's' : ''} detected in your ${lang} code`;
+
+    const sorted = [...r.findings].sort(
+      (a,b) =>
+        (SEV_ORDER[a.severity] || 1) -
+        (SEV_ORDER[b.severity] || 1)
+    );
+
+    const list = document.getElementById('findingsList');
+
+    list.innerHTML = '';
+
+    if (sorted.length === 0) {
+
+      list.innerHTML = `
+        <div class="finding">
+          <span class="finding-icon">✅</span>
+          <div class="finding-body">
+            <div class="finding-title">
+              No Major Issues Found
+            </div>
+            <div class="finding-desc">
+              Your code looks clean based on current checks.
+            </div>
+          </div>
+        </div>
+      `;
+
+    } else {
+
+      sorted.forEach((f, i) => {
+
+        const div = document.createElement('div');
+
+        div.className = 'finding';
+
+        div.style.animationDelay =
+          (i * 0.07) + 's';
+
+        div.innerHTML = `
+          <span class="finding-icon">
+            ${TYPE_ICONS[f.type] || '📝'}
+          </span>
+
+          <div class="finding-body">
+
+            <div class="finding-title">
+
+              ${esc(f.title)}
+
+              <span class="tag ${TAG_CLASS[f.type] || 'tag-qual'}">
+                ${(f.type || '').toUpperCase()}
+              </span>
+
+              <span class="tag tag-sev">
+                ${esc(f.severity)}
+              </span>
+
+            </div>
+
+            <div class="finding-desc">
+              ${esc(f.description)}
+            </div>
+
+          </div>
+        `;
+
+        list.appendChild(div);
+      });
+    }
+
+    showState('results');
+  }
+</script>
+</body>
+</html>
